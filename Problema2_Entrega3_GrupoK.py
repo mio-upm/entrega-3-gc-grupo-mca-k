@@ -37,7 +37,7 @@ def operaciones_solapan(inicio1, fin1, inicio2, fin2):
 
 #Encontrar planificaciones sin que sea muy costoso:
 # Generar planificaciones completas de manera iterativa (greedy)
-def generar_planificaciones(operaciones):
+def generar_planificaciones(operaciones, max_variaciones=2):
     planificaciones = []
     operaciones = operaciones.sort_values(by="Hora inicio ").reset_index(drop=True)
     operaciones_asignadas = set()
@@ -47,7 +47,7 @@ def generar_planificaciones(operaciones):
             continue
 
         # Crear una nueva planificación
-        planificacion = [op]
+        planificacion = [op["Código operación"]]
         operaciones_asignadas.add(op["Código operación"])
 
         for _, op_candidata in operaciones.iterrows():
@@ -55,22 +55,38 @@ def generar_planificaciones(operaciones):
                 continue
 
             # Verificar si la operación candidata es compatible con la planificación actual
-            es_factible = all(
+            es_compatible = all(
                 not operaciones_solapan(
-                    op_existente["Hora inicio "], op_existente["Hora fin"],
-                    op_candidata["Hora inicio "], op_candidata["Hora fin"]
+                    operaciones.loc[operaciones["Código operación"] == op_existente, "Hora inicio "].iloc[0],
+                    operaciones.loc[operaciones["Código operación"] == op_existente, "Hora fin"].iloc[0],
+                    op_candidata["Hora inicio "],
+                    op_candidata["Hora fin"]
                 )
                 for op_existente in planificacion
             )
 
-            if es_factible:
-                planificacion.append(op_candidata)
+            if es_compatible:
+                planificacion.append(op_candidata["Código operación"])
                 operaciones_asignadas.add(op_candidata["Código operación"])
 
-        # Añadir la planificación completa a la lista de planificaciones
-        planificaciones.append([op["Código operación"] for op in planificacion])
+        # Añadir la planificación completa
+        planificaciones.append(planificacion)
 
-    return planificaciones
+        # Generar variaciones
+        for _ in range(max_variaciones):
+            if len(planificacion) > 1:
+                variacion = planificacion.copy()
+                variacion.pop()  # Eliminar una operación
+                planificaciones.append(variacion)
+
+    # Filtrar planificaciones redundantes
+    planificaciones_unicas = []
+    for plan in planificaciones:
+        if plan not in planificaciones_unicas:
+            planificaciones_unicas.append(plan)
+
+    return planificaciones_unicas
+
 
 
 # Generar planificaciones con heurística greedy
